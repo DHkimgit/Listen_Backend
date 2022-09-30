@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from decouple import config
 from server.schemas.user import CreateUsers
 from server.model.user import Users
+from server.database.user import post_user
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Union, Any
@@ -50,12 +51,17 @@ def verify_password(password: str, hashed_pass: str) -> bool:
 
 @router.post("/")
 async def post_user(user_info: CreateUsers, db: AsyncSession = Depends(get_db_session)):
+    query_check_existuser = select(Users).filter(Users.email == user_info.email)
     user_info.pw = pwd_context.hash(user_info.pw)
     user = Users(**user_info.dict())
     db.add(user)
     commit = await db.commit()
     refresh = await db.refresh(user)
-    return user
+    query = select(Users).filter(Users.email == user_info.email)
+    check_user = await db.execute(query)
+    result = check_user.scalars().all()
+    print(result[0].name)
+    return result
 
 @router.post('/login', summary="Create access and refresh tokens for user")
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db_session)):

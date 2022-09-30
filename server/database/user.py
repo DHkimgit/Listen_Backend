@@ -17,7 +17,7 @@ MYSQL_URL = config("MYSQL_URL")
 #         yield sess
 #     finally:
 #         await sess.close()
-engine = create_async_engine('mysql+aiomysql://admins:0000@52.79.112.41:59782/LISTEN', echo=True)
+engine = create_async_engine(MYSQL_URL, echo=True)
 
 async def get_db_session() -> AsyncSession:
     sess = AsyncSession(bind=engine)
@@ -25,6 +25,15 @@ async def get_db_session() -> AsyncSession:
         yield sess
     finally:
         await sess.close()
+
+async def post_user(db : AsyncSession, data):
+    db.add(data)
+    commit = await db.commit()
+    refresh = await db.refresh(data)
+    query = select(Users).filter(Users.email == data.email)
+    check_result = await db.execute(query)
+    print(check_result)
+    return check_result
 
 # async def create_user(session: session, user_info : CreateUser):
 #     user_details = session.query(User).filter(user_info.service_number == User.service_number, user_info.name == User.name).first()

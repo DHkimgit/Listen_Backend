@@ -22,3 +22,5 @@ class Users(Base):
   created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
   updated_at = Column(DateTime, nullable=False, default=func.utc_timestamp(), onupdate=func.utc_timestamp())
 
+class User_business(Base):
+  __tablename__ = 'user'
