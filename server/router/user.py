@@ -1,45 +1,71 @@
-from asyncio import current_task
-from fastapi import APIRouter, Body, Depends
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_scoped_session
+from typing import List
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import Session, sessionmaker
-from decouple import config
-from server.schemas.user import CreateUser, ResponseUser
-from server.model.user import User
-from fastapi.encoders import jsonable_encoder
+from fastapi import FastAPI ,Depends , status , HTTPException, APIRouter, Body
+from server.model.main import UnitBase, Unit, UnitCreate, UnitUpdate, User, Proposition
+from server.db import init_db, get_session
+from passlib.context import CryptContext
 
 router = APIRouter()
 
-MYSQL_URL = config("MYSQL_URL")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-engine = create_async_engine(MYSQL_URL, echo=True)
-async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-
-async def get_db_session() -> AsyncSession:
-    sess = async_scoped_session(async_session, scopefunc=current_task)
-    try:
-        yield sess
-    finally:
-        await sess.close()
+def user_info(name, service_number, rank, unit_name, authority) -> dict:
+    return {
+        "name": name,
+        "service_number": service_number,
+        "rank": rank,
+        "unit": unit_name,
+        "authority": authority
+    }
 
 @router.post("/")
-async def post_user(user_info: CreateUser, db: AsyncSession = Depends(get_db_session)):
-    user = User(**user_info.dict())
-    db.add(user)
-    commit = await db.commit()
-    refresh = await db.refresh(user)
+async def add_user(user: User, session: AsyncSession = Depends(get_session)):
+    unit =  await session.get(Unit, user.unit_id)
+    user_exist = await session.get(User, user.service_number)
+    if user_exist:
+        raise HTTPException(status_code=404)
+    if not unit :
+        raise HTTPException(status_code=404)
+    hashed_pw = pwd_context.hash(user.pw, salt="IwoeifhcnjdhFkIeJmdkfi")
+    user = User(service_number = user.service_number, pw = hashed_pw, name = user.name, rank = user.rank, unit_id = user.unit_id, authority = user.authority)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
     return user
 
-@router.get("/")
-async def get_all_user(db: AsyncSession = Depends(get_db_session)):
-    query = select(User)
-    result = await db.execute(query)
-    return result.scalars().all()
+@router.get("/user_info/{service_number}")
+async def user_information(service_number: str, session: AsyncSession = Depends(get_session)):
+    user = await session.get(User, service_number)
+    if user == None:
+        raise HTTPException(status_code=404)
+    unit = await session.get(Unit, user.unit_id)
+    result = user_info(user.name, user.service_number, user.rank, unit.name, user.authority)
+    return result
 
-@router.get("/{id}")
-async def get_user_from_id(id: str, db: AsyncSession = Depends(get_db_session)):
-    query = select(User).filter(User.id == id)
-    result = await db.execute(query)
-    objects = result.scalars().one()
-    print(jsonable_encoder(objects)['name'])
-    return objects 
+@router.delete("/{service_number}")
+async def delete_user(service_number: str, session : AsyncSession = Depends(get_session)):
+    db_user = await session.get(User, service_number)
+    if db_user == None:
+        raise HTTPException(status_code=404)
+    await session.delete(db_user)
+    await session.commit()
+    return{"ok" : "true"}
+
+@router.get("/proposition/{service_number}")
+async def get_proposition(service_number: str, session: AsyncSession = Depends(get_session)):
+    query = select(Proposition).where(Proposition.writer == service_number)
+    prop = await session.execute(query)
+    if prop == None:
+        raise HTTPException(status_code=404)
+    result = prop.scalars().all()
+    return result
+
+# {
+#   "service_number": "22-76014926",
+#   "pw": "0000",
+#   "name": "홍길동",
+#   "rank": "일병",
+#   "unit_id": 3,
+#   "authority": "병사"
+# }

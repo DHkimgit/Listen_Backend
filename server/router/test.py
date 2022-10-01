@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from decouple import config
 from server.schemas.user import CreateUsers
 from server.model.user import Users
-from server.database.user import post_user
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Union, Any
@@ -24,7 +23,6 @@ REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
 ALGORITHM = "HS256"
 JWT_SECRET_KEY = config("JWT_SECRET_KEY")  # should be kept secret
 JWT_REFRESH_SECRET_KEY = config("JWT_REFRESH_SECRET_KEY")   # should be kept secret
-
 
 engine = create_async_engine(MYSQL_URL, echo=True)
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
@@ -49,19 +47,14 @@ def create_access_token(subject: Union[str, Any], expires_delta: int = None) -> 
 def verify_password(password: str, hashed_pass: str) -> bool:
     return pwd_context.verify(password, hashed_pass)
 
-@router.post("/")
+@router.post("/", description="Resgister")
 async def post_user(user_info: CreateUsers, db: AsyncSession = Depends(get_db_session)):
-    query_check_existuser = select(Users).filter(Users.email == user_info.email)
     user_info.pw = pwd_context.hash(user_info.pw)
     user = Users(**user_info.dict())
     db.add(user)
     commit = await db.commit()
     refresh = await db.refresh(user)
-    query = select(Users).filter(Users.email == user_info.email)
-    check_user = await db.execute(query)
-    result = check_user.scalars().all()
-    print(result[0].name)
-    return result
+    return user
 
 @router.post('/login', summary="Create access and refresh tokens for user")
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db_session)):

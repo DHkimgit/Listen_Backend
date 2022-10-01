@@ -1,26 +1,43 @@
-from sqlalchemy import Column, BigInteger, SmallInteger, String, DateTime, Boolean, Enum, func, Integer, ForeignKey
-from sqlalchemy.orm import declarative_base, relationship
+from sqlmodel import SQLModel , Field
+from typing import Optional
+from datetime import datetime 
+import pytz
 
-Base = declarative_base()
+KST = pytz.timezone('Asia/Seoul')
 
-class Unit(Base):
-    __tablename__ = 'unit'
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    name = Column(String(length=200), nullable=False)
-    member = Column(BigInteger, nullable=False, default=0)
+class UnitBase(SQLModel):
+    name: str
+    member: int
 
-    user = relationship("User", back_populates="unit")
+class Unit(UnitBase, table=True):
+    id: int = Field(default=None, primary_key=True)
 
+class UnitCreate(UnitBase):
+    pass
 
-class User(Base):
-    __tablename__ = 'user'
-    service_number = Column(String(length=15, collation='utf8'), primary_key=True, nullable=False)
-    pw = Column(String(length=2000), nullable=False)
-    name = Column(String(length=255, collation='utf8'), nullable=False)
-    rank = Column(String(length=10, collation='utf8'), nullable=False)
-    unit_id = Column(Integer, ForeignKey('unit.id'))
-    authority = Column(String(length=10, collation='utf8'), nullable=False)
+class UnitUpdate(UnitBase):
+    pass
 
-    unit = relationship("Unit", back_populates="user")
+class User(SQLModel, table=True):
+    service_number: Optional[str] = Field(default=None, primary_key=True)
+    pw: Optional[str]
+    name: Optional[str]
+    rank: Optional[str]
+    unit_id: Optional[int] = Field(default=None, foreign_key="unit.id")
+    authority: Optional[str]
 
-# https://app.quickdatabasediagrams.com/#/d/q2wtwj
+class PropositionBase(SQLModel):
+    title: Optional[str]
+    contents: Optional[str]
+    status: Optional[str]
+
+class Proposition(PropositionBase, table=True):
+    proposal_id: int = Field(default=None, primary_key=True)
+    writer: Optional[str] = Field(default=None, foreign_key="user.service_number")
+    number_of_vote: int = Field(default=0, nullable=False)
+    vote_status: Optional[str] = Field(default="투표중")
+    frst_reg_date: datetime = Field(default=datetime.now(KST), nullable=False)
+    last_chg_date: datetime = Field(default=datetime.now(KST), nullable=False)
+
+class PropositionCreate(PropositionBase):
+    pass
