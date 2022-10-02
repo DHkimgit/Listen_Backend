@@ -41,3 +41,34 @@ class Proposition(PropositionBase, table=True):
 
 class PropositionCreate(PropositionBase):
     pass
+
+class Uservote(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    proposal_id: int = Field(default=None, foreign_key="proposition.proposal_id")
+    voter: Optional[str] = Field(default=None, foreign_key="user.service_number")
+
+class PropositioncommentBase(SQLModel):
+    contents: Optional[str]
+
+class Propositioncomment(PropositioncommentBase, table=True):
+    comment_id: int = Field(default=None, primary_key=True)
+    commenter: Optional[str] = Field(default=None, foreign_key="user.service_number")
+    proposal_id: int = Field(default=None, foreign_key="proposition.proposal_id")
+    comment_date: datetime = Field(default=datetime.now(KST), nullable=False)
+
+class PropositioncommentCreate(PropositioncommentBase):
+    pass
+
+class PropositionanswerBase(SQLModel):
+    title: Optional[str]
+    contents: Optional[str]
+
+class Propositionanswer(PropositionanswerBase, table=True):
+    answer_id: int = Field(default=None, primary_key=True)
+    proposal_id: int = Field(default=None, foreign_key="proposition.proposal_id")
+    writer: str = Field(default=None, foreign_key="user.service_number")
+    frst_reg_date: datetime = Field(default=datetime.now(KST), nullable=False)
+    last_chg_date: datetime = Field(default=datetime.now(KST), nullable=False)
+
+class PropositionanswerCreate(PropositionanswerBase):
+    pass

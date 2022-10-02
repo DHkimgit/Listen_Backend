@@ -6,6 +6,8 @@ from server.router.unit_lagecy import router as UnitLRouter
 from server.router.unit import router as UnitRouter
 from server.router.login import router as LoginRouter
 from server.router.proposition import router as PropositionRouter
+from server.router.propositioncomment import router as PropositionCommentRouter
+from server.router.propositionanswer import router as PropositionAnswerRouter
 app = FastAPI()
 
 origins = [
@@ -24,6 +26,8 @@ app.include_router(UserRouter, tags=["User"], prefix="/user")
 app.include_router(UnitRouter, tags=["Unit"], prefix="/unit")
 app.include_router(LoginRouter, tags=["Login"], prefix="/login")
 app.include_router(PropositionRouter, tags=["Proposition"], prefix="/proposition")
+app.include_router(PropositionCommentRouter, tags=["PropositionComment"], prefix="/proposition/comment")
+app.include_router(PropositionAnswerRouter, tags=["PropositionAnswer"], prefix="/proposition/answer")
 
 @app.get("/", tags=["Root"])
 async def read_root():
