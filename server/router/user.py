@@ -29,9 +29,14 @@ async def add_user(user: User, session: AsyncSession = Depends(get_session)):
         raise HTTPException(status_code=404)
     hashed_pw = pwd_context.hash(user.pw, salt="IwoeifhcnjdhFkIeJmdkfi")
     user = User(service_number = user.service_number, pw = hashed_pw, name = user.name, rank = user.rank, unit_id = user.unit_id, authority = user.authority)
+    db_unit = await session.get(Unit, user.unit_id)
+    current_number_of_unit_mamber = db_unit.member
+    setattr(db_unit ,'member', current_number_of_unit_mamber + 1)
     session.add(user)
+    session.add(db_unit)
     await session.commit()
     await session.refresh(user)
+    await session.refresh(db_unit)
     return user
 
 @router.get("/user_info/{service_number}")
@@ -51,21 +56,3 @@ async def delete_user(service_number: str, session : AsyncSession = Depends(get_
     await session.delete(db_user)
     await session.commit()
     return{"ok" : "true"}
-
-@router.get("/proposition/{service_number}")
-async def get_proposition(service_number: str, session: AsyncSession = Depends(get_session)):
-    query = select(Proposition).where(Proposition.writer == service_number)
-    prop = await session.execute(query)
-    if prop == None:
-        raise HTTPException(status_code=404)
-    result = prop.scalars().all()
-    return result
-
-# {
-#   "service_number": "22-76014926",
-#   "pw": "0000",
-#   "name": "홍길동",
-#   "rank": "일병",
-#   "unit_id": 3,
-#   "authority": "병사"
-# }

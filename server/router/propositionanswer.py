@@ -32,3 +32,10 @@ async def add_proposition_answer(prop: PropositionanswerCreate, proposal_id: int
         await session.refresh(answer)
     
     return answer
+
+@router.get("/{proposal_id}")
+async def get_proposal_answer(proposal_id: int, session: AsyncSession = Depends(get_session)):
+    query = select(Propositionanswer).where(Propositionanswer.proposal_id == proposal_id)
+    exc_proposal = await session.execute(query)
+    result = exc_proposal.scalars().all()
+    return result

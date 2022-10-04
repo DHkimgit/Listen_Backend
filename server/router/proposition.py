@@ -8,7 +8,6 @@ from server.auth.token import get_current_servicenumber, get_current_user
 
 router = APIRouter()
 
-
 @router.post("/")
 async def add_proposition(prop: PropositionCreate, session: AsyncSession = Depends(get_session), service_number: str = Depends(get_current_user)):
     proposal = Proposition(writer = service_number, title = prop.title, contents = prop.contents, status = prop.status)
@@ -35,7 +34,7 @@ async def get_proposition(service_number: str, session: AsyncSession = Depends(g
     result = prop.scalars().all()
     return result
 
-@router.patch("/vote/{proposal_id}")
+@router.patch("/votefavor/{proposal_id}")
 async def vote_proposition(proposal_id: int, session: AsyncSession = Depends(get_session), service_number: str = Depends(get_current_user)):
     # check duplicate vote
     query = select(Uservote).where(Uservote.voter == service_number, Uservote.proposal_id == proposal_id)
@@ -48,8 +47,31 @@ async def vote_proposition(proposal_id: int, session: AsyncSession = Depends(get
         )
     # Increase the number of votes and add vote data
     db_prop = await session.get(Proposition, proposal_id)
-    current_number_of_vote = db_prop.number_of_vote
-    setattr(db_prop ,'number_of_vote', current_number_of_vote + 1)
+    current_number_of_vote_favor = db_prop.vote_favor
+    setattr(db_prop ,'vote_favor', current_number_of_vote_favor + 1)
+    vote = Uservote(proposal_id = proposal_id, voter = service_number)
+    session.add(db_prop)
+    session.add(vote)
+    await session.commit()
+    await session.refresh(db_prop)
+    await session.refresh(vote)
+    return db_prop
+
+@router.patch("/voteagainst/{proposal_id}")
+async def vote_proposition(proposal_id: int, session: AsyncSession = Depends(get_session), service_number: str = Depends(get_current_user)):
+    # check duplicate vote
+    query = select(Uservote).where(Uservote.voter == service_number, Uservote.proposal_id == proposal_id)
+    result = await session.execute(query)
+    check = result.scalars().all()
+    if check:
+        raise HTTPException(
+            status_code=404,
+            detail="Current user already vote this proposition"
+        )
+    # Increase the number of votes and add vote data
+    db_prop = await session.get(Proposition, proposal_id)
+    current_number_of_vote_against = db_prop.vote_against
+    setattr(db_prop ,'vote_against', current_number_of_vote_against + 1)
     vote = Uservote(proposal_id = proposal_id, voter = service_number)
     session.add(db_prop)
     session.add(vote)
@@ -75,7 +97,8 @@ async def get_proposition_and_comment(proposal_id: int, session: AsyncSession = 
         "title" : proposal.title,
         "writer" : proposal.writer,
         "unit_name" : writer_unit_name,
-        "number_of_vote" : proposal.number_of_vote,
+        "vote_favor" : proposal.vote_favor,
+        "vote_against" : proposal.vote_against,
         "vote_status": proposal.vote_status,
         "frst_reg_date" : proposal.frst_reg_date,
         "last_chg_date" : proposal.last_chg_date,

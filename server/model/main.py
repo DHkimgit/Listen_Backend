@@ -34,7 +34,8 @@ class PropositionBase(SQLModel):
 class Proposition(PropositionBase, table=True):
     proposal_id: int = Field(default=None, primary_key=True)
     writer: Optional[str] = Field(default=None, foreign_key="user.service_number")
-    number_of_vote: int = Field(default=0, nullable=False)
+    vote_favor: int = Field(default=0, nullable=False)
+    vote_against: int = Field(default=0, nullable=False)
     vote_status: Optional[str] = Field(default="투표중")
     frst_reg_date: datetime = Field(default=datetime.now(KST), nullable=False)
     last_chg_date: datetime = Field(default=datetime.now(KST), nullable=False)
