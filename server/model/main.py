@@ -18,6 +18,14 @@ class UnitCreate(UnitBase):
 class UnitUpdate(UnitBase):
     pass
 
+class Propositionstatus(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    name: Optional[str]
+
+class Votestatus(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    name: Optional[str]
+
 class User(SQLModel, table=True):
     service_number: Optional[str] = Field(default=None, primary_key=True)
     pw: Optional[str]
@@ -29,24 +37,32 @@ class User(SQLModel, table=True):
 class PropositionBase(SQLModel):
     title: Optional[str]
     contents: Optional[str]
-    status: Optional[str]
+
+class PropositionUpdate(SQLModel):
+    contents: str
 
 class Proposition(PropositionBase, table=True):
     proposal_id: int = Field(default=None, primary_key=True)
     writer: Optional[str] = Field(default=None, foreign_key="user.service_number")
+    status: Optional[int] = Field(default=1, foreign_key="propositionstatus.id")
     vote_favor: int = Field(default=0, nullable=False)
     vote_against: int = Field(default=0, nullable=False)
-    vote_status: Optional[str] = Field(default="투표중")
+    vote_status: Optional[int] = Field(default=1, foreign_key="votestatus.id")
     frst_reg_date: datetime = Field(default=datetime.now(KST), nullable=False)
     last_chg_date: datetime = Field(default=datetime.now(KST), nullable=False)
 
 class PropositionCreate(PropositionBase):
     pass
 
+class Votetype(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    name: str 
+
 class Uservote(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     proposal_id: int = Field(default=None, foreign_key="proposition.proposal_id")
     voter: Optional[str] = Field(default=None, foreign_key="user.service_number")
+    vote_type: int = Field(default=None, foreign_key="votetype.id")
 
 class PropositioncommentBase(SQLModel):
     contents: Optional[str]
@@ -63,7 +79,7 @@ class PropositioncommentCreate(PropositioncommentBase):
 class PropositionanswerBase(SQLModel):
     title: Optional[str]
     contents: Optional[str]
-
+    
 class Propositionanswer(PropositionanswerBase, table=True):
     answer_id: int = Field(default=None, primary_key=True)
     proposal_id: int = Field(default=None, foreign_key="proposition.proposal_id")
@@ -73,3 +89,10 @@ class Propositionanswer(PropositionanswerBase, table=True):
 
 class PropositionanswerCreate(PropositionanswerBase):
     pass
+
+class Propositionstorage(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    user: str = Field(default=None, foreign_key="user.service_number")
+    proposal_id: int = Field(default=None, foreign_key="proposition.proposal_id")
+    unit_id: int = Field(default=None, foreign_key="unit.id")
+
