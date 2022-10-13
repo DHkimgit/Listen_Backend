@@ -2,10 +2,10 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import FastAPI ,Depends , status , HTTPException, APIRouter, Body
-from server.model.main import UnitBase, Unit, UnitCreate, UnitUpdate, PropositionBase, Propositionstatus, Votestatus, PropositionUpdate, Proposition, PropositionCreate, Uservote, Propositioncomment, User, Propositionstorage
+from server.model.main import UnitBase, Unit, UnitCreate, UnitUpdate, PropositionBase, Propositionstatus, Votestatus, PropositionUpdate, Proposition, PropositionCreate, Uservote, Propositioncomment, User, Propositionstorage, Answerstatus
 from server.db import init_db, get_session
 from server.auth.token import get_current_servicenumber, get_current_user
-from datetime import datetime 
+from datetime import datetime, timedelta
 import pytz
 
 KST = pytz.timezone('Asia/Seoul')
@@ -15,6 +15,12 @@ router = APIRouter()
 @router.post("/")
 async def add_proposition(prop: PropositionCreate, session: AsyncSession = Depends(get_session), service_number: str = Depends(get_current_user)):
     proposal = Proposition(writer = service_number, title = prop.title, contents = prop.contents)
+    unit_id_query = await session.execute(select(User.unit_id).where(User.service_number == service_number))
+    unit_id = unit_id_query.scalars().one()
+    unit =  await session.get(Unit, unit_id)
+    current_proposition_total = unit.proposition_total
+    setattr(unit, 'proposition_total', current_proposition_total + 1)
+    session.add(unit)
     session.add(proposal)
     await session.commit()
     await session.refresh(proposal)
@@ -40,62 +46,6 @@ async def get_proposition(service_number: str, session: AsyncSession = Depends(g
             detail="Wrong service number"
         )
     return result
-
-@router.get("/votestatus/{proposal_id}")
-async def vote_status(proposal_id: int, session: AsyncSession = Depends(get_session)):
-    result = []
-    proposal = await session.get(Proposition, proposal_id)
-    vote_favor = proposal.vote_favor
-    vote_against = proposal.vote_against
-    result.append(vote_favor)
-    result.append(vote_against)
-    return result  
-
-@router.patch("/votefavor/{proposal_id}")
-async def vote_proposition_favor(proposal_id: int, session: AsyncSession = Depends(get_session), service_number: str = Depends(get_current_user)):
-    # check duplicate vote
-    query = select(Uservote).where(Uservote.voter == service_number, Uservote.proposal_id == proposal_id)
-    result = await session.execute(query)
-    check = result.scalars().all()
-    if check:
-        raise HTTPException(
-            status_code=404,
-            detail="Current user already vote this proposition"
-        )
-    # Increase the number of votes and add vote data
-    db_prop = await session.get(Proposition, proposal_id)
-    current_number_of_vote_favor = db_prop.vote_favor
-    setattr(db_prop ,'vote_favor', current_number_of_vote_favor + 1)
-    vote = Uservote(proposal_id = proposal_id, voter = service_number, vote_type = 1)
-    session.add(db_prop)
-    session.add(vote)
-    await session.commit()
-    await session.refresh(db_prop)
-    await session.refresh(vote)
-    return db_prop
-
-@router.patch("/voteagainst/{proposal_id}")
-async def vote_proposition_against(proposal_id: int, session: AsyncSession = Depends(get_session), service_number: str = Depends(get_current_user)):
-    # check duplicate vote
-    query = select(Uservote).where(Uservote.voter == service_number, Uservote.proposal_id == proposal_id)
-    result = await session.execute(query)
-    check = result.scalars().all()
-    if check:
-        raise HTTPException(
-            status_code=404,
-            detail="Current user already vote this proposition"
-        )
-    # Increase the number of votes and add vote data
-    db_prop = await session.get(Proposition, proposal_id)
-    current_number_of_vote_against = db_prop.vote_against
-    setattr(db_prop ,'vote_against', current_number_of_vote_against + 1)
-    vote = Uservote(proposal_id = proposal_id, voter = service_number, vote_type = 2)
-    session.add(db_prop)
-    session.add(vote)
-    await session.commit()
-    await session.refresh(db_prop)
-    await session.refresh(vote)
-    return db_prop
 
 @router.get("/withcomment/{proposal_id}")
 async def get_proposition_and_comment(proposal_id: int, session: AsyncSession = Depends(get_session)):
@@ -174,6 +124,13 @@ async def update_proposition_contents(prop: PropositionUpdate, proposal_id: int,
 @router.delete("/{proposal_id}")
 async def delete_proposal(proposal_id: int, session: AsyncSession = Depends(get_session), service_number: str = Depends(get_current_user)):
     proposal = await session.get(Proposition, proposal_id)
+    unit_id_query = await session.execute(select(User.unit_id).where(User.service_number == service_number))
+    unit_id = unit_id_query.scalars().one()
+    unit =  await session.get(Unit, unit_id)
+    current_proposition_total = unit.proposition_total
+    setattr(unit, 'proposition_total', current_proposition_total - 1)
+    session.add(unit)
+    await session.commit()
     if not proposal:
         raise HTTPException(status_code=404)
     
@@ -191,3 +148,103 @@ async def delete_proposal(proposal_id: int, session: AsyncSession = Depends(get_
     await session.delete(proposal)
     await session.commit()
     return {"ok"}
+
+@router.get("/units/{unit_id}")
+async def get_proposition_by_unit_id(unit_id: int, session: AsyncSession = Depends(get_session)):
+    service_number_list = []
+    result = []
+    unit = await session.get(Unit, unit_id)
+    if not unit:
+        raise HTTPException(
+            status_code=404,
+            detail="unit doesn't exist"
+        )
+    query_user = select(User.service_number).where(User.unit_id == unit_id)
+    exc_user = await session.execute(query_user)
+    result_user = exc_user.scalars().all()
+
+    for k in range(len(result_user)):
+        service_number_list.append(result_user[k])
+
+    for i in range(len(service_number_list)):
+        current_service_number = service_number_list[i]
+        query_user = select(User).where(User.service_number == current_service_number)
+        exc_user = await session.execute(query_user)
+        result_user = exc_user.scalars().all()
+        query_proposal = select(Proposition).where(Proposition.writer == current_service_number)
+        exc_proposal = await session.execute(query_proposal)
+        result_proposal = exc_proposal.scalars().all()
+
+        for j in range(len(result_proposal)):
+            query_status = select(Propositionstatus).where(Propositionstatus.id == result_proposal[j].status)
+            exc_status = await session.execute(query_status)
+            result_status = exc_status.scalars().all()
+            query_votestatus = select(Votestatus).where(Votestatus.id == result_proposal[j].vote_status)
+            exc_votestatus = await session.execute(query_votestatus)
+            result_votestatus = exc_votestatus.scalars().all()
+            query_answerstatus = select(Answerstatus).where(Answerstatus.id == result_proposal[j].answer_status)
+            exc_answerstatus = await session.execute(query_answerstatus)
+            result_answerstatus = exc_answerstatus.scalars().all()
+            result.append(
+                {
+                    "writer_servicenumber": result_proposal[j].writer,
+                    "writer_name": result_user[0].name,
+                    "writer_rank": result_user[0].rank,
+                    "title": result_proposal[j].title,
+                    "contents": result_proposal[j].contents,
+                    "frst_reg_date": result_proposal[j].frst_reg_date,
+                    "last_chg_date": result_proposal[j].last_chg_date,
+                    "vote_favor": result_proposal[j].vote_favor,
+                    "vote_against": result_proposal[j].vote_against,
+                    "status": result_status[0].name,
+                    "vote_status": result_votestatus[0].name,
+                    "answer_status": result_answerstatus[0].name,
+                }
+            )
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail="proposition doesn't exist"
+        )
+
+    return result
+
+@router.get("/date/test")
+async def test_date(session: AsyncSession = Depends(get_session)):
+    proposal = await session.get(Proposition, 1)
+    query = select(Proposition.frst_reg_date)
+    exc = await session.execute(query)
+    result = exc.scalars().all()
+    KSTs = timedelta(hours=+9)
+    kijun = timedelta(days = 1)
+    current_time = datetime.now()
+    result = current_time - result[0] + KSTs
+    if result >= kijun:
+        print("하루 넘음")
+    else:
+        print("안넘음")
+    print(str(result))
+    return str(result)
+
+@router.get("/proposalstatus/date/test")
+async def check_proposal_status(session: AsyncSession = Depends(get_session)):
+    query = select(Proposition).where(Proposition.status == 1)
+    exc = await session.execute(query)
+    result = exc.scalars().all()
+    roop_len = len(result)
+    kst_correction = timedelta(hours=+9)
+    time_criteria = timedelta(days = 1)
+    current_time = datetime.now()
+    for i in range(roop_len):
+        write_time = result[i].frst_reg_date
+        check_timeout = current_time - write_time + kst_correction
+        if check_timeout >= time_criteria:
+            proposal_id = result[i].proposal_id
+            db_prop = await session.get(Proposition, proposal_id)
+            setattr(db_prop ,'status', 2)
+            session.add(db_prop)
+            await session.commit()
+        else:
+            pass
+    return "finish"

@@ -10,16 +10,15 @@ router = APIRouter()
 
 @router.post("/{proposal_id}")
 async def add_proposition_answer(prop: PropositionanswerCreate, proposal_id: int, session: AsyncSession = Depends(get_session), service_number: str = Depends(get_current_user)):
-    query_proposal = select(Proposition).where(Proposition.proposal_id == proposal_id)
-    exc_proposal = await session.execute(query_proposal)
-    result_proposal = exc_proposal.scalars().one()
-    proposal_writer = result_proposal.writer
+    proposal = await session.get(Proposition, proposal_id)
+    proposal_writer = proposal.writer
     query_writer = select(User).where(User.service_number == proposal_writer)
     exc_writer = await session.execute(query_writer)
     result_writer = exc_writer.scalars().one()
     writer_unit = result_writer.unit_id
     answerer = await session.get(User, service_number)
     answerer_unit = answerer.unit_id
+
     if writer_unit != answerer_unit:
         raise HTTPException(
             status_code=404,
@@ -28,6 +27,8 @@ async def add_proposition_answer(prop: PropositionanswerCreate, proposal_id: int
     else:
         answer = Propositionanswer(proposal_id = proposal_id, writer = service_number, title = prop.title, contents = prop.contents)
         session.add(answer)
+        setattr(proposal, "answer_status", 4)
+        session.add(proposal)
         await session.commit()
         await session.refresh(answer)
     

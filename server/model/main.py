@@ -11,6 +11,7 @@ class UnitBase(SQLModel):
 
 class Unit(UnitBase, table=True):
     id: int = Field(default=None, primary_key=True)
+    proposition_total: int = Field(default=0)
 
 class UnitCreate(UnitBase):
     pass
@@ -45,6 +46,7 @@ class Proposition(PropositionBase, table=True):
     proposal_id: int = Field(default=None, primary_key=True)
     writer: Optional[str] = Field(default=None, foreign_key="user.service_number")
     status: Optional[int] = Field(default=1, foreign_key="propositionstatus.id")
+    answer_status: Optional[int] = Field(default=1, foreign_key="answerstatus.id")
     vote_favor: int = Field(default=0, nullable=False)
     vote_against: int = Field(default=0, nullable=False)
     vote_status: Optional[int] = Field(default=1, foreign_key="votestatus.id")
@@ -89,10 +91,13 @@ class Propositionanswer(PropositionanswerBase, table=True):
 
 class PropositionanswerCreate(PropositionanswerBase):
     pass
-
+    
 class Propositionstorage(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     user: str = Field(default=None, foreign_key="user.service_number")
     proposal_id: int = Field(default=None, foreign_key="proposition.proposal_id")
     unit_id: int = Field(default=None, foreign_key="unit.id")
 
+class Answerstatus(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    name: str
